@@ -1,0 +1,21 @@
+public static void main(String[] args) throws InterruptedException, IOException{
+		Gauge requests = Gauge.build()
+			    .name("my_requests_total")
+			    .help("Total number of requests.")
+			    .register();
+
+		 		 HTTPServer server = new HTTPServer(1234);
+		 		long start = System.currentTimeMillis();
+		 		  while (true) {
+		 			  while(System.currentTimeMillis()-start<=1000) {
+		 				  requests.inc();  // 카운트를 1 증가시킴
+		 			  }
+		 			  System.out.println(requests.get());
+		 			 
+		 			 Thread.sleep(2000);  // 1초 대기
+		 			requests.set(0);
+		 			start = System.currentTimeMillis();
+		 	          
+		 	           
+		 	        }
+		 	
