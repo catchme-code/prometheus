@@ -1,0 +1,153 @@
+package com.naver.www.prometheus;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.ServerSocket;
+import java.net.URL;
+import java.util.Properties;
+
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.json.JSONObject;
+
+import io.prometheus.client.Counter;
+import io.prometheus.client.Gauge;
+import io.prometheus.client.exporter.HTTPServer;
+import io.prometheus.client.hotspot.DefaultExports;
+
+public class prometheus {
+	static final Counter dynamicMetrics = Counter.build()
+	            .name("dynamic_metric_example_total")
+	            .help("Example of a large number of metrics with dynamic labels")
+	            .labelNames("label1")
+	            .register();
+	
+	static final Counter job1requestCount = Counter.build()
+	        .name("job1_requests_total")
+	        .help("Total requests for job 1.")
+	        .labelNames("label2")
+	        .register(); 
+	
+	public static void main(String[] args) throws InterruptedException, IOException{
+		long selectstart=0;
+		long selectend=0;
+		int count=0;
+		 Properties configs = new Properties();
+	       configs.put("bootstrap.servers", "localhost:9092"); // kafka host 및 server 설정
+	       configs.put("acks", "all");	// 자신이 보낸 메시지에 대해 카프카로부터 확인을 기다리지 않습니다.
+	       
+	       configs.put("block.on.buffer.full", "true");        // 서버로 보낼 레코드를 버퍼링 할 때 사용할 수 있는 전체 메모리의 바이트수
+	       configs.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");   // serialize 설정
+	       configs.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer"); // serialize 설정
+	   
+	       KafkaProducer<String, String> producer = new KafkaProducer<String, String>(configs);
+	       
+	       
+		ServerSocket socket = new ServerSocket(0);
+        int port = socket.getLocalPort();
+        socket.close();
+        System.out.println(port);
+        
+		 HTTPServer server = new HTTPServer(port);
+		 
+		 
+		  long start =System.currentTimeMillis();
+          for(int i=0;System.currentTimeMillis()-start<=1000;i++) {
+        		count++;
+	            // Generate unique labels for each metric
+	            String label2 = "value_"+(count);  // Grouping to reduce unique labels
+	            
+
+	            // Increment metric with dynamic labels
+	            job1requestCount.labels(label2).inc();
+          }
+          long end =System.currentTimeMillis();
+
+	        System.out.println(count);
+	        
+	        
+	        generateLargeNumberOfMetrics();
+	      
+	       
+	        try {
+	            // Prometheus API 엔드포인트 (쿼리 엔드포인트)
+	            String prometheusUrl = "http://localhost:9090/api/v1/query";
+	            String query = "dynamic_metric_example_total"; 
+
+	            selectstart=System.currentTimeMillis();
+	            // URL 생성
+	            URL url = new URL(prometheusUrl + "?query=" + query);
+	            
+	            // HTTP 연결 설정
+	            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+	            connection.setRequestMethod("GET");
+	            connection.setConnectTimeout(500000);  // 연결 시간 초과 설정
+	            connection.setReadTimeout(500000);     // 읽기 시간 초과 설정
+
+	            // 응답 코드 확인            
+	            int status = connection.getResponseCode();
+	            selectend=System.currentTimeMillis();
+	            
+	            /*
+	            if (status == 200) {
+	                // 응답 내용 읽기
+	                BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+	                String inputLine;
+	                StringBuilder content = new StringBuilder();
+	                while ((inputLine = in.readLine()) != null) {
+	                    content.append(inputLine);
+	                }
+
+	                String jsonResponse = content.toString();
+	                JSONObject jsonObject = new JSONObject(jsonResponse);
+
+	                // JSON 응답을 출력
+	                /*
+	                System.out.println("Prometheus 응답:");
+	                System.out.println(jsonObject.toString(4));
+	                */
+	                /*
+	                if (jsonObject.has("data")) {
+	                    JSONObject data = json Object.getJSONObject("data");
+	                    System.out.println("데이터: " + data.toString());
+	                }
+	                
+	                in.close();
+	            } else {
+	                System.out.println("Error: " + status);
+	            }
+	            */
+	            connection.disconnect();
+	        } catch (Exception e) {
+	            e.printStackTrace();
+	        }
+	        String mesege=(end-start)/1000+"초동안 수집된 갯수는"+count+"개 입니다.";
+	        
+	        producer.send(new ProducerRecord<String, String> ("test", mesege ));
+	        
+	        String mesege2="300만건 응답시간:"+(selectend-selectstart)+"ms";
+	        
+	        producer.send(new ProducerRecord<String, String> ("test", mesege2));
+	        
+	        System.out.println(end-start);
+	        System.out.println("실행 끝 ");
+	    }
+	 private static void generateLargeNumberOfMetrics() {
+		 int count=0;
+	        int maxMetrics = 4000000;
+
+	        for (int i = 0; i < maxMetrics; i++) {
+	        	count++;
+	            // Generate unique labels for each metric
+	            String label1 = "value_"+i;  // Grouping to reduce unique labels
+	            
+
+	            // Increment metric with dynamic labels
+	            dynamicMetrics.labels(label1).inc();
+	        }
+		
+	        
+	}
+}
